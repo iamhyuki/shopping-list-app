@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>쇼핑 리스트</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+      min-height: 100vh;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 480px;
+    }
+
+    h1 {
+      font-size: 28px;
+      color: #1a1a2e;
+      margin-bottom: 24px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .input-row input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .input-row input:focus {
+      border-color: #4361ee;
+    }
+
+    .input-row button {
+      padding: 12px 20px;
+      background: #4361ee;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .input-row button:hover { background: #3a56d4; }
+
+    .stats {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 12px;
+    }
+
+    .list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      padding: 14px 16px;
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      transition: opacity 0.2s;
+    }
+
+    .item.checked { opacity: 0.55; }
+
+    .item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: #4361ee;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .item span {
+      flex: 1;
+      font-size: 16px;
+      color: #333;
+      transition: text-decoration 0.2s;
+      word-break: break-word;
+    }
+
+    .item.checked span {
+      text-decoration: line-through;
+      color: #aaa;
+    }
+
+    .item .delete-btn {
+      background: none;
+      border: none;
+      color: #ccc;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: color 0.2s, background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .item .delete-btn:hover {
+      color: #e74c3c;
+      background: #fdecea;
+    }
+
+    .empty {
+      text-align: center;
+      color: #bbb;
+      padding: 48px 0;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>&#128722; 쇼핑 리스트</h1>
+
+    <div class="input-row">
+      <input type="text" id="itemInput" placeholder="추가할 항목 입력..." autofocus>
+      <button onclick="addItem()">추가</button>
+    </div>
+
+    <div class="stats" id="stats"></div>
+    <ul class="list" id="list"></ul>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'shopping-list';
+
+    function load() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function save(items) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    }
+
+    function render() {
+      const items = load();
+      const list = document.getElementById('list');
+      const stats = document.getElementById('stats');
+
+      if (items.length === 0) {
+        list.innerHTML = '<div class="empty">리스트가 비어있습니다</div>';
+        stats.textContent = '';
+        return;
+      }
+
+      const checked = items.filter(i => i.done).length;
+      stats.textContent = `총 ${items.length}개 중 ${checked}개 완료`;
+
+      list.innerHTML = items.map((item, i) => `
+        <li class="item ${item.done ? 'checked' : ''}">
+          <input type="checkbox" ${item.done ? 'checked' : ''}
+            onchange="toggleItem(${i})">
+          <span>${escapeHtml(item.name)}</span>
+          <button class="delete-btn" onclick="deleteItem(${i})" title="삭제">&times;</button>
+        </li>
+      `).join('');
+    }
+
+    function escapeHtml(text) {
+      const d = document.createElement('div');
+      d.textContent = text;
+      return d.innerHTML;
+    }
+
+    function addItem() {
+      const input = document.getElementById('itemInput');
+      const name = input.value.trim();
+      if (!name) return;
+
+      const items = load();
+      items.push({ name, done: false });
+      save(items);
+      input.value = '';
+      input.focus();
+      render();
+    }
+
+    function toggleItem(index) {
+      const items = load();
+      if (index >= 0 && index < items.length) {
+        items[index].done = !items[index].done;
+        save(items);
+        render();
+      }
+    }
+
+    function deleteItem(index) {
+      const items = load();
+      if (index >= 0 && index < items.length) {
+        items.splice(index, 1);
+        save(items);
+        render();
+      }
+    }
+
+    document.getElementById('itemInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') addItem();
+    });
+
+    render();
+  </script>
+</body>
+</html>
