@@ -147,23 +147,19 @@
     <ul class="list" id="list"></ul>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const STORAGE_KEY = 'shopping-list';
+    const SUPABASE_URL = 'https://xtzifvhyowsflekdqnpl.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh0emlmdmh5b3dzZmxla2RxbnBsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA5Mzk3NjQsImV4cCI6MjA4NjUxNTc2NH0.IYDMTYp1DIHIVI7bWSLHBMyysS7mZ1UPjmre_3Q6few';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    function load() {
-      try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-      } catch {
-        return [];
-      }
+    function escapeHtml(text) {
+      const d = document.createElement('div');
+      d.textContent = text;
+      return d.innerHTML;
     }
 
-    function save(items) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-    }
-
-    function render() {
-      const items = load();
+    function renderItems(items) {
       const list = document.getElementById('list');
       const stats = document.getElementById('stats');
 
@@ -176,51 +172,86 @@
       const checked = items.filter(i => i.done).length;
       stats.textContent = `총 ${items.length}개 중 ${checked}개 완료`;
 
-      list.innerHTML = items.map((item, i) => `
+      list.innerHTML = items.map(item => `
         <li class="item ${item.done ? 'checked' : ''}">
           <input type="checkbox" ${item.done ? 'checked' : ''}
-            onchange="toggleItem(${i})">
+            onchange="toggleItem(${item.id})">
           <span>${escapeHtml(item.name)}</span>
-          <button class="delete-btn" onclick="deleteItem(${i})" title="삭제">&times;</button>
+          <button class="delete-btn" onclick="deleteItem(${item.id})" title="삭제">&times;</button>
         </li>
       `).join('');
     }
 
-    function escapeHtml(text) {
-      const d = document.createElement('div');
-      d.textContent = text;
-      return d.innerHTML;
+    async function render() {
+      const { data, error } = await supabase
+        .from('shopping_items')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('데이터 로드 실패:', error);
+        return;
+      }
+
+      renderItems(data);
     }
 
-    function addItem() {
+    async function addItem() {
       const input = document.getElementById('itemInput');
       const name = input.value.trim();
       if (!name) return;
 
-      const items = load();
-      items.push({ name, done: false });
-      save(items);
+      const { error } = await supabase
+        .from('shopping_items')
+        .insert({ name, done: false });
+
+      if (error) {
+        console.error('항목 추가 실패:', error);
+        return;
+      }
+
       input.value = '';
       input.focus();
-      render();
+      await render();
     }
 
-    function toggleItem(index) {
-      const items = load();
-      if (index >= 0 && index < items.length) {
-        items[index].done = !items[index].done;
-        save(items);
-        render();
+    async function toggleItem(id) {
+      const { data: item, error: fetchError } = await supabase
+        .from('shopping_items')
+        .select('done')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) {
+        console.error('항목 조회 실패:', fetchError);
+        return;
       }
+
+      const { error } = await supabase
+        .from('shopping_items')
+        .update({ done: !item.done })
+        .eq('id', id);
+
+      if (error) {
+        console.error('항목 업데이트 실패:', error);
+        return;
+      }
+
+      await render();
     }
 
-    function deleteItem(index) {
-      const items = load();
-      if (index >= 0 && index < items.length) {
-        items.splice(index, 1);
-        save(items);
-        render();
+    async function deleteItem(id) {
+      const { error } = await supabase
+        .from('shopping_items')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('항목 삭제 실패:', error);
+        return;
       }
+
+      await render();
     }
 
     document.getElementById('itemInput').addEventListener('keydown', e => {
